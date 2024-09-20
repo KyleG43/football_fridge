@@ -24,10 +24,9 @@ for team in teams:
 
 consecutive_errors = 0
 
+pin = 16
 GPIO.setmode(GPIO.BOARD)
 GPIO.setwarnings(False)
-
-pin = 16
 GPIO.setup(pin, GPIO.OUT)
 GPIO.output(pin, GPIO.HIGH)
 
