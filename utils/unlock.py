@@ -6,3 +6,4 @@ GPIO.setwarnings(False)
 GPIO.setup(pin, GPIO.OUT)
 
 GPIO.cleanup()
+print('Door unlocked')
