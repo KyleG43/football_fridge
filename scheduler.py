@@ -14,7 +14,7 @@ leagues = {
     'url': 'https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard'
   },
   'nfl': {
-    'teams': ['49ers'],
+    'teams': ['49ers', 'Seahawks'],
     'url': 'https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard'
   }
 }
