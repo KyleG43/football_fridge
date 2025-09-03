@@ -68,15 +68,22 @@ def unlock_door(seconds):
   sleep(seconds)
   GPIO.output(pin, GPIO.HIGH)
 
+def  exit_if_all_teams_have_no_active_players():
+  if all(box_score['no_active_players'] for box_score in box_scores.values()):
+    print('All teams have no active players')
+    GPIO.cleanup()
+    exit(0)
+
 while(True):
   sleep(5)
 
   try:
     matchups = requests.get(f'https://api.sleeper.app/v1/league/{league_id}/matchups/{week}').json()
+    events = requests.get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard').json()['events']
   except Exception as e:
     consecutive_errors += 1
     if consecutive_errors >= 5:
-      print(f'Error retrieving matchups: {e}')
+      print(f'Error retrieving matchups and events: {e}')
       GPIO.cleanup()
       exit(7)
     continue
@@ -88,54 +95,68 @@ while(True):
   for team in teams:
     for matchup in matchups:
       if team_to_roster[team] == matchup['roster_id']:
-        new_box_scores[team] = [
-          {
-            'id': player_id,
-            'name': f'{players[player_id]["first_name"]} {players[player_id]["last_name"]}' if player_id != '0' else None,
-            'position': players[player_id]['position'] if player_id != '0' else None,
-            'points': points
-          }
-          for player_id, points in zip(matchup['starters'], matchup['starters_points'])
-        ]
+        new_box_scores[team] = {
+          'players': [
+            {
+              'id': player_id,
+              'name': f'{players[player_id]["first_name"]} {players[player_id]["last_name"]}' if player_id != '0' else None,
+              'position': players[player_id]['position'] if player_id != '0' else None,
+              'team': players[player_id]['team'] if player_id != '0' else None,
+              'points': points
+            }
+            for player_id, points in zip(matchup['starters'], matchup['starters_points'])
+          ],
+          'no_active_players': True
+        }
+  
+    for player in new_box_scores[team]['players']:
+      for event in events:
+        if player['team'] in event['shortName']:
+          if not (event['status']['clock'] == 0 and event['status']['period'] in [0, 4]):
+            new_box_scores[team]['no_active_players'] = False
+            break
 
   for team, old_box_score in box_scores.items():
+    if old_box_score is None:
+      continue
+    
     new_box_score = new_box_scores[team]
-    if old_box_score is not None:
-      for old_player, new_player in zip(old_box_score, new_box_score):
-        if new_player['id'] == old_player['id'] and new_player['points'] > old_player['points']:
-          points_scored = new_player['points'] - old_player['points']
-          if new_player['position'] == 'DEF':
-            if points_scored == 10:
-              pass
-            elif points_scored >= 6:
-              if first_score:
-                sleep(spoiler_timeout)
-                first_score = False
-              print(f'{team} TOUCHDOWN ({new_player["name"]})')
-              unlock_door(60)
-            elif points_scored >= 2:
-              if first_score:
-                sleep(spoiler_timeout)
-                first_score = False
-              print(f'{team} BIG DEFENSIVE PLAY ({new_player["name"]})')
-              unlock_door(30)
-            elif new_player['position'] != 'K' and points_scored >= 6:
-              if first_score:
-                sleep(spoiler_timeout)
-                first_score = False
-              print(f'{team} TOUCHDOWN ({new_player["name"]})')
-              unlock_door(60)
-            elif new_player['position'] == 'QB' and points_scored >= 4:
-              if first_score:
-                sleep(spoiler_timeout)
-                first_score = False
-              print(f'{team} PASSING TOUCHDOWN ({new_player["name"]})')
-              unlock_door(45)
-            elif new_player['position'] == 'K' and points_scored >= 3:
-              if first_score:
-                sleep(spoiler_timeout)
-                first_score = False
-              print(f'{team} FIELD GOAL ({new_player["name"]})')
-              unlock_door(30)
+    for old_player, new_player in zip(old_box_score['players'], new_box_score['players']):
+      if new_player['id'] == old_player['id'] and new_player['points'] > old_player['points']:
+        points_scored = new_player['points'] - old_player['points']
+        if new_player['position'] == 'DEF':
+          if points_scored == 10:
+            pass
+          elif points_scored >= 6:
+            if first_score:
+              sleep(spoiler_timeout)
+              first_score = False
+            print(f'{team} TOUCHDOWN ({new_player["name"]})')
+            unlock_door(60)
+          elif points_scored >= 2:
+            if first_score:
+              sleep(spoiler_timeout)
+              first_score = False
+            print(f'{team} BIG DEFENSIVE PLAY ({new_player["name"]})')
+            unlock_door(30)
+          elif new_player['position'] != 'K' and points_scored >= 6:
+            if first_score:
+              sleep(spoiler_timeout)
+              first_score = False
+            print(f'{team} TOUCHDOWN ({new_player["name"]})')
+            unlock_door(60)
+          elif new_player['position'] == 'QB' and points_scored >= 4:
+            if first_score:
+              sleep(spoiler_timeout)
+              first_score = False
+            print(f'{team} PASSING TOUCHDOWN ({new_player["name"]})')
+            unlock_door(45)
+          elif new_player['position'] == 'K' and points_scored >= 3:
+            if first_score:
+              sleep(spoiler_timeout)
+              first_score = False
+            print(f'{team} FIELD GOAL ({new_player["name"]})')
+            unlock_door(30)
 
-    box_scores[team] = new_box_score  
+  box_scores = new_box_scores
+  exit_if_all_teams_have_no_active_players()
