@@ -86,7 +86,7 @@ def exit_if_no_teams_are_active():
     exit(0)
 
 while True:
-  sleep(35)
+  sleep(15)
 
   events = {}
   try:
@@ -124,11 +124,13 @@ while True:
     if team in new_scores:
       new_score = new_scores[team]
       if old_score['value'] is not None and new_score['value'] > old_score['value']:
-        if first_score:
-          sleep(spoiler_timeout)
-          first_score = False
-        print(f'{team} scored! ({old_score["value"]} -> {new_score["value"]})')
-        unlock_door()
+        points_scored = new_score['value'] - old_score['value']
+        if (new_score['league'] == 'nfl' and points_scored >= 2) or (new_score['league'] != 'nfl' and points_scored >= 1):
+          if first_score:
+            sleep(spoiler_timeout)
+            first_score = False
+          print(f'{team} scored! ({old_score["value"]} -> {new_score["value"]})')
+          unlock_door()
 
       scores[team] = new_score
       if scores[team]['final']:
